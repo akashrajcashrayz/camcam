@@ -17,7 +17,6 @@ import cv2
 from io import StringIO
 from io import BytesIO
 import numpy as np
-import time
 #----------------- Video Transmission ------------------------------#
 app = Flask(__name__)
 app.logger.addHandler(logging.StreamHandler(stdout))
@@ -33,28 +32,20 @@ actions = np.array(['thanks', 'please','namaste'])
 label_map = {label:num for num, label in enumerate(actions)}
 # Thirty videos worth of data
 no_sequences = 30
-
 # Videos are going to be 30 frames in length
 sequence_length = 30
 mp_holistic = mp.solutions.holistic # Holistic model
 mp_drawing = mp.solutions.drawing_utils # Drawing utilities
-
 #---------------- Video Transmission --------------------------------#
-
-
 #---------------- Video Socket Connections --------------------------#
 @socketio.on('input image', namespace='/test')
 def test_message(input):
     input = input.split(",")[1]
     camera.enqueue_input(input)
     #camera.enqueue_input(base64_to_pil_image(input))
-
-
 @socketio.on('connect', namespace='/test')
 def test_connect():
     app.logger.info("client connected")
-
-
 @app.route('/')
 def index():
     """Video streaming home page."""
@@ -71,7 +62,6 @@ def draw_landmarks(image, results):
     mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_holistic.POSE_CONNECTIONS) # Draw pose connections
     mp_drawing.draw_landmarks(image, results.left_hand_landmarks, mp_holistic.HAND_CONNECTIONS) # Draw left hand connections
     mp_drawing.draw_landmarks(image, results.right_hand_landmarks, mp_holistic.HAND_CONNECTIONS) # Draw right hand connections
-
 def draw_styled_landmarks(image, results):
     # Draw face connections
     mp_drawing.draw_landmarks(image, results.face_landmarks, mp_holistic.FACE_CONNECTIONS, 
@@ -99,7 +89,6 @@ def extract_keypoints(results):
     lh = np.array([[res.x, res.y, res.z] for res in results.left_hand_landmarks.landmark]).flatten() if results.left_hand_landmarks else np.zeros(21*3)
     rh = np.array([[res.x, res.y, res.z] for res in results.right_hand_landmarks.landmark]).flatten() if results.right_hand_landmarks else np.zeros(21*3)
     return np.concatenate([pose, face, lh, rh])
-
 colors = [(245,117,16), (117,245,16), (16,117,245),(245,117,16), (117,245,16), (16,117,245),(16,117,245)]
 #colors = [(245,117,16), (117,245,16), (16,117,245)]
 def prob_viz(res, actions, input_frame, colors):
@@ -109,9 +98,6 @@ def prob_viz(res, actions, input_frame, colors):
         cv2.putText(output_frame, actions[num], (0, 85+num*40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
         
     return output_frame
-
-
-
 def readb64(base64_string):
     #sbuf = StringIO(base64_string)
     #sbuf.write(base64.b64decode(base64_string))
@@ -122,102 +108,108 @@ def readb64(base64_string):
     return cv2.cvtColor(np.array(pimg), cv2.COLOR_RGB2BGR)
 
 
-  
+
 def gen():
   print("in gen")
+
+    
+        
+          
+    
+
+        
+    
+    @@ -133,65 +134,69 @@ def gen():
+  
   sequence = []
   sentence = []
   threshold = 0.6
-
   
   # Set mediapipe model 
   with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
-      frame_rate = 24
-      prev = 0
       while True:
-          time_elapsed = time.time() - prev           
+
 
           # Read feed
           #ret, frame = cap.read()
-          
+          frame = camera.get_frame()
           #print(frame)  
           print('////////////////////////')
           #frame = base64.b64encode(frame).decode('ascii')
-          
-          if time_elapsed > 1./frame_rate:
-              frame = camera.get_frame()
-                
-                
-              prev = time.time()
-              frame = readb64(frame)
-              #frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-              print(frame.shape) 
-              frame = cv2.resize(frame,(640,480))  
+          frame = readb64(frame)
+          #frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+          print(frame.shape) 
+          frame = cv2.resize(frame,(640,480))  
 
-              print(frame.shape)
+          print(frame.shape)
 
 
-              #frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  
-              # Make detections
-              image, results = mediapipe_detection(frame, holistic)
+          #frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  
+          # Make detections
+          image, results = mediapipe_detection(frame, holistic)
 
-              # Draw landmarks
-              draw_styled_landmarks(image, results)
+          # Draw landmarks
+          draw_styled_landmarks(image, results)
 
-              # 2. Prediction logic
-              keypoints = extract_keypoints(results)
+          # 2. Prediction logic
+          keypoints = extract_keypoints(results)
 
-              sequence.append(keypoints)
-              sequence = sequence[-30:]
+          sequence.append(keypoints)
+          sequence = sequence[-30:]
 
-              if len(sequence) == 30:
+          if len(sequence) == 30:
 
-                  res = model.predict_proba(np.array(sequence).reshape(1, (np.array(sequence).shape[0]*np.array(sequence).shape[1])))[0]
-                  print(actions[np.argmax(res)])
+              res = model.predict_proba(np.array(sequence).reshape(1, (np.array(sequence).shape[0]*np.array(sequence).shape[1])))[0]
+              print(actions[np.argmax(res)])
 
 
-              #3. Viz logic
-                  if (res[0] > 0.5) or (res[1] > 0.96) or (res[2] > 0.6) :  
-                      if len(sentence) > 0: 
-                          if actions[np.argmax(res)] != sentence[-1]:
-                              sentence.append(actions[np.argmax(res)])
-                      else:
+          #3. Viz logic
+              if (res[0] > 0.5) or (res[1] > 0.96) or (res[2] > 0.6) :  
+                  if len(sentence) > 0: 
+                      if actions[np.argmax(res)] != sentence[-1]:
                           sentence.append(actions[np.argmax(res)])
+                  else:
+                      sentence.append(actions[np.argmax(res)])
 
-                  if len(sentence) > 5: 
-                      sentence = sentence[-5:]
+              if len(sentence) > 5: 
+                  sentence = sentence[-5:]
 
-                  # Viz probabilities
-                  image = prob_viz(res, actions, image, colors)
+              # Viz probabilities
+              image = prob_viz(res, actions, image, colors)
 
-              cv2.rectangle(image, (0,0), (640, 40), (245, 117, 16), -1)
-              cv2.putText(image, ' '.join(sentence), (3,30), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+          cv2.rectangle(image, (0,0), (640, 40), (245, 117, 16), -1)
+          cv2.putText(image, ' '.join(sentence), (3,30), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
 
-              # Show to screen
-              #cv2.imshow('open_image',image)
-              ret, buffer = cv2.imencode('.jpg', image)
-              frame = buffer.tobytes()
-              yield (b'--frame\r\n'
-                     b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')       
+          # Show to screen
+          #cv2.imshow('open_image',image)
+          ret, buffer = cv2.imencode('.jpg', image)
+          frame = buffer.tobytes()
+          yield (b'--frame\r\n'
+                 b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')       
 
 
 def gen1():
-    """Video streaming generator function."""
 
+    
+          
+            
+    
+
+          
+    
+    
+  
+    """Video streaming generator function."""
     app.logger.info("starting to generate frames!")
     while True:
         frame = camera.get_frame() #pil_image_to_base64(camera.get_frame())
         print(frame)
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-
-
 @app.route('/video_feed')
 def video_feed():
     """Video streaming route. Put this in the src attribute of an img tag."""
     return Response(gen(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-
 if __name__ == '__main__':
     socketio.run(app)
