@@ -4,3 +4,7 @@ libjasper-dev
 libatlas-base-dev
 python-dev 
 libevent-dev
+libgl1-mesa-glx
+freeglut3-dev
+libgtk2.0-dev
+libjasper-dev
